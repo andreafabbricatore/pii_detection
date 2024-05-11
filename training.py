@@ -92,7 +92,7 @@ def get_trainer_from_model_name(our_name, model_name):
     )
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    data_collator = DataCollatorForTokenClassification(tokenizer = tokenizer)
+    data_collator = DataCollatorForTokenClassification(tokenizer = tokenizer, padding = "max_length")
 
     training_args = TrainingArguments(
     output_dir=our_name,
