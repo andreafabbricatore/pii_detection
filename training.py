@@ -95,7 +95,7 @@ def get_trainer_from_model_name(our_name, model_name):
     data_collator = DataCollatorForTokenClassification(tokenizer = tokenizer)
 
     training_args = TrainingArguments(
-    output_dir="our_name",
+    output_dir=our_name,
     learning_rate=2e-5,
     per_device_train_batch_size=16,
     per_device_eval_batch_size=16,
