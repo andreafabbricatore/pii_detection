@@ -1,7 +1,13 @@
 from transformers import AutoModelForTokenClassification, TrainingArguments, Trainer, AutoTokenizer, DataCollatorForTokenClassification
+import wandb
 from aux import json_to_Dataset
 import evaluate
 import numpy as np
+import os
+import torch
+
+os.environ["WANDB_PROJECT"] = "<pii_detection>"  # name your W&B project
+os.environ["WANDB_LOG_MODEL"] = "checkpoint"
 
 all_labels = ['B-STREET',
  'B-CITY',
@@ -92,14 +98,14 @@ def get_trainer_from_model_name(our_name, model_name):
     )
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    data_collator = DataCollatorForTokenClassification(tokenizer = tokenizer, padding = "max_length")
+    data_collator = DataCollatorForTokenClassification(tokenizer = tokenizer)
 
     training_args = TrainingArguments(
     output_dir=our_name,
     learning_rate=2e-5,
     per_device_train_batch_size=16,
     per_device_eval_batch_size=16,
-    num_train_epochs=4,
+    num_train_epochs=1,
     weight_decay=0.01,
     save_steps=100,
     eval_steps=100,
@@ -109,14 +115,14 @@ def get_trainer_from_model_name(our_name, model_name):
     load_best_model_at_end=True,
     push_to_hub=False,
     remove_unused_columns= False,
-    report_to= "tensorboard"
+    report_to= "wandb"
     )
 
     trainer = Trainer(
     model=model,
     args=training_args,
-    train_dataset= json_to_Dataset("/train.json"),
-    eval_dataset=json_to_Dataset("/test.json"),
+    train_dataset= json_to_Dataset("train.json"),
+    eval_dataset=json_to_Dataset("test.json"),
     tokenizer= tokenizer,
     data_collator= data_collator,
     compute_metrics= compute_metrics,
@@ -132,3 +138,4 @@ if __name__ == "__main__":
     for our_name, model_name in zip(our_names, models_names):
         trainer = get_trainer_from_model_name(our_name=our_name, model_name = model_name)
         trainer.train()
+        wandb.finish()

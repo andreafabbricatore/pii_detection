@@ -20,14 +20,14 @@ def json_to_Dataset(filepath:str) -> Dataset:
     source_texts = []
     attention_masks = []
     for i in data:
-        ids.append(i['id'])
-        tokens.append(i['tokens'])
+        #ids.append(int(i['id']))
+        # tokens.append(i['tokens'])
         token_ids.append(i['token_ids'])
         tokenized_bios.append(i['bio_labels'])
-        source_texts.append(i['source_text'])
-        attention_masks.append([1 for i in range(len(i['token_ids']))])
+        # source_texts.append(i['source_text'])
+        # attention_masks.append([1 for i in range(len(i['token_ids']))])
 
-    dataset = Dataset.from_dict({'id': ids, 'tokens': tokens, 'input_ids': token_ids, 'labels': tokenized_bios, 'source_texts':source_texts, 'attention_mask': attention_masks})
+    dataset = Dataset.from_dict({'input_ids': token_ids, 'labels': tokenized_bios})
 
     return dataset
 
