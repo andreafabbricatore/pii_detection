@@ -81,17 +81,17 @@ def compute_metrics(p):
     ]
 
     results = seqeval.compute(predictions=true_predictions, references=true_labels)
-    confusion = confusion_matrix.compute(predictions=true_predictions, references=true_labels)
+    #confusion = confusion_matrix.compute(predictions=true_predictions, references=true_labels)
     return {
         "precision": results["overall_precision"],
         "recall": results["overall_recall"],
         "f1": results["overall_f1"],
         "accuracy": results["overall_accuracy"],
-        "confusion_matrix": confusion["confusion_matrix"]
+        #"confusion_matrix": confusion["confusion_matrix"]
     }
 
 
-def get_trainer_from_model_name(our_name, model_name):
+def get_trainer_from_model_name(our_name, model_name, dataset_prefix):
 
     model = AutoModelForTokenClassification.from_pretrained(
     model_name , num_labels=n_labels, id2label=id2label, label2id=label2id
@@ -107,11 +107,11 @@ def get_trainer_from_model_name(our_name, model_name):
     per_device_eval_batch_size=16,
     num_train_epochs=1,
     weight_decay=0.01,
-    save_steps=100,
+    save_steps=400,
     eval_steps=100,
     logging_steps=10,
-    evaluation_strategy="epoch",
-    save_strategy="epoch",
+    evaluation_strategy="steps",
+    save_strategy="steps",
     load_best_model_at_end=True,
     push_to_hub=False,
     remove_unused_columns= False,
@@ -121,8 +121,8 @@ def get_trainer_from_model_name(our_name, model_name):
     trainer = Trainer(
     model=model,
     args=training_args,
-    train_dataset= json_to_Dataset("train.json"),
-    eval_dataset=json_to_Dataset("test.json"),
+    train_dataset= json_to_Dataset(dataset_prefix + "_train.json"),
+    eval_dataset=json_to_Dataset(dataset_prefix + "_test.json"),
     tokenizer= tokenizer,
     data_collator= data_collator,
     compute_metrics= compute_metrics,
@@ -132,10 +132,13 @@ def get_trainer_from_model_name(our_name, model_name):
 
 
 if __name__ == "__main__":
-    our_names = ["deberta_pii_finetuned", "distillbert_pii_finetuned"]
+    our_names = ["deberta_pii_finetuned", "distilbert_pii_finetuned"]
     models_names = ["microsoft/deberta-v2-xlarge", "distilbert-base-uncased"]
+    dataset_prefixes = ["deberta", "mbert"]
 
-    for our_name, model_name in zip(our_names, models_names):
-        trainer = get_trainer_from_model_name(our_name=our_name, model_name = model_name)
-        trainer.train()
+    for our_name, model_name, dataset_prefix in zip(our_names, models_names, dataset_prefixes):
+        trainer = get_trainer_from_model_name(our_name=our_name, model_name = model_name, dataset_prefix=dataset_prefix)
+        trainer.train(resume_from_checkpoint=True)
+        trainer.save_model(output_dir=our_name)
         wandb.finish()
+        break

@@ -21,13 +21,13 @@ def json_to_Dataset(filepath:str) -> Dataset:
     attention_masks = []
     for i in data:
         #ids.append(int(i['id']))
-        # tokens.append(i['tokens'])
+        tokens.append(i['tokens'])
         token_ids.append(i['token_ids'])
         tokenized_bios.append(i['bio_labels'])
-        # source_texts.append(i['source_text'])
+        source_texts.append(i['source_text'])
         # attention_masks.append([1 for i in range(len(i['token_ids']))])
 
-    dataset = Dataset.from_dict({'input_ids': token_ids, 'labels': tokenized_bios})
+    dataset = Dataset.from_dict({'input_ids': token_ids, 'labels': tokenized_bios, 'source_text': source_texts, 'tokens': tokens})
 
     return dataset
 
@@ -40,4 +40,4 @@ def inference(model:AutoModelForTokenClassification, tokenizer:AutoTokenizer, te
     predictions = torch.argmax(logits, dim=2)
     predicted_token_class = [model.config.id2label[t.item()] for t in predictions[0]]
 
-    return logits, predictions, predicted_token_class
+    return logits, predictions, predicted_token_class, inputs
