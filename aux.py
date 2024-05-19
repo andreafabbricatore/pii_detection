@@ -3,6 +3,7 @@ from datasets import Dataset
 from transformers import AutoTokenizer
 from transformers import AutoModelForTokenClassification
 import torch
+import wandb
 
 def json_to_Dataset(filepath:str) -> Dataset:
     """
@@ -41,3 +42,17 @@ def inference(model:AutoModelForTokenClassification, tokenizer:AutoTokenizer, te
     predicted_token_class = [model.config.id2label[t.item()] for t in predictions[0]]
 
     return logits, predictions, predicted_token_class, inputs
+
+def download_distilbert():
+    run = wandb.init()
+    print("API KEY: 501ec742d9174ae2b5538dbba9d348d69f98ec93")
+    artifact = run.use_artifact('splenderai/<pii_detection>/model-1rbdb33p:v2', type='model')
+    artifact_dir = artifact.download()
+
+def download_deberta():
+    run = wandb.init()
+    print("API KEY: 501ec742d9174ae2b5538dbba9d348d69f98ec93")
+    artifact = run.use_artifact('splenderai/<pii_detection>/model-hy3dezwa:v2', type='model')
+    artifact_dir = artifact.download()
+
+   
