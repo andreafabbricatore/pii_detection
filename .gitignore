@@ -1,5 +1,8 @@
-/distilbert_final
-/deberta_final
+/distilbert_finetuned
+/deberta_finetuned
+/albert_finetuned
+/albert_finetuned2
+/distilbert_finetuned2
 /wandb
 /artifacts
 /artifact

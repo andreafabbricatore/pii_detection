@@ -115,7 +115,7 @@ def get_trainer_from_model_name(our_name, model_name, dataset_prefix):
     load_best_model_at_end=True,
     push_to_hub=False,
     remove_unused_columns= False,
-    report_to= "wandb"
+    report_to= "wandb",
     )
 
     trainer = Trainer(
