@@ -166,34 +166,45 @@ def compute_all_metrics(model:AutoModelForTokenClassification, data:Dataset):
     return compute_metrics(predictions, labels)
 
 def ensembler(output1, output2, word_ids1, word_ids2):
+    word_ids1 = word_ids1[1:-1]
+    word_ids2 = word_ids2[1:-1]
+    output1 = output1[1:-1]
+    output2 = output2[1:-1]
+
+    stacked_tensors1 = torch.stack([torch.tensor(i) for i in output1])
+    placeholder1 = torch.mean(stacked_tensors1, dim=0)
+
+    stacked_tensors2 = torch.stack([torch.tensor(i) for i in output2])
+    placeholder2 = torch.mean(stacked_tensors2, dim=0)
+
     new_output1 = []
     new_output2 = []
 
     current_word = []
-    prev_word_id = None
+    prev_word_id = 0
     for ind, word_id in enumerate(word_ids1):
-        if word_id is None:
-            continue
-        current_word.append(output1[0])
         if word_id != prev_word_id:
+            if word_id > prev_word_id + 1:
+                new_output1.append(placeholder1)
             prev_word_id = word_id
             stacked_tensors = torch.stack(current_word)
             averaged_tensor = torch.mean(stacked_tensors, dim=0)
             new_output1.append(averaged_tensor.tolist())
             current_word = []
-    
+        current_word.append(output1[ind])
+
     current_word = []
-    prev_word_id = None
+    prev_word_id = 0
     for ind, word_id in enumerate(word_ids2):
-        if word_id is None:
-            continue
-        current_word.append(output2[0])
         if word_id != prev_word_id:
+            if word_id > prev_word_id + 1:
+                new_output2.append(placeholder2)
             prev_word_id = word_id
             stacked_tensors = torch.stack(current_word)
             averaged_tensor = torch.mean(stacked_tensors, dim=0)
             new_output2.append(averaged_tensor.tolist())
             current_word = []
+        current_word.append(output2[ind])
 
     return torch.tensor(new_output1), torch.tensor(new_output2)
 
