@@ -6,6 +6,7 @@ import torch
 import wandb
 import spacy
 import evaluate
+from tqdm import tqdm
 nlp = spacy.load("en_core_web_sm")
 
 all_labels = ['B-STREET',
@@ -55,7 +56,11 @@ all_labels = ['B-STREET',
  'I-SECADDRESS',
  'B-CARDISSUER',
  'I-CARDISSUER']
+id2label = {i: l for i, l in enumerate(all_labels)}
+label2id = {v: k for k, v in id2label.items()}
+target = [l for l in all_labels if l != "O"]
 seqeval = evaluate.load("seqeval")
+confusion_matrix = evaluate.load("confusion_matrix")
 
 
 def json_to_Dataset(filepath:str) -> Dataset:
@@ -79,31 +84,23 @@ def json_to_Dataset(filepath:str) -> Dataset:
         token_ids.append(i['token_ids'])
         tokenized_bios.append(i['bio_labels'])
         source_texts.append(i['source_text'])
-        # attention_masks.append([1 for i in range(len(i['token_ids']))])
+        attention_masks.append([1 for i in range(len(i['token_ids']))])
 
-    dataset = Dataset.from_dict({'input_ids': token_ids, 'labels': tokenized_bios, 'source_text': source_texts, 'tokens': tokens})
+    dataset = Dataset.from_dict({'input_ids': token_ids, 'labels': tokenized_bios, 'source_text': source_texts, 'tokens': tokens, 'attention_mask': attention_masks})
 
     return dataset
 
-def inference(model:AutoModelForTokenClassification, tokenizer:AutoTokenizer, text:str, is_albert:bool):
-    if is_albert:
-        docs = nlp(text)
-        spacy_tokens = [token.text for token in docs]
-        inputs = tokenizer(spacy_tokens, is_split_into_words=True, truncation=True, return_tensors="pt")
-    else:
-        inputs = tokenizer(text, return_tensors="pt")
-
+def inference(model:AutoModelForTokenClassification, input_ids:torch.tensor, attention_mask:torch.tensor):
+    inputs = {'input_ids': input_ids, 'attention_mask': attention_mask}
     with torch.no_grad():
-        logits = model(**inputs).logits
+        logits = model(input_ids=input_ids, attention_mask=attention_mask).logits
 
     predictions = torch.argmax(logits, dim=2)
     predicted_token_class = [model.config.id2label[t.item()] for t in predictions[0]]
 
     return logits, predictions, predicted_token_class, inputs
 
-def compute_metrics(model:AutoModelForTokenClassification, tokenizer:AutoTokenizer, data:dict, is_albert:bool):
-    logits, predictions, predicted_token_class, inputs = inference(model, tokenizer, data['source_text'], is_albert)
-    labels = data['labels']
+def compute_metrics(predictions:list, labels:list):
     true_predictions = [
         [all_labels[p] for (p, l) in zip(prediction, label) if l != -100]
         for prediction, label in zip(predictions, labels)
@@ -113,19 +110,34 @@ def compute_metrics(model:AutoModelForTokenClassification, tokenizer:AutoTokeniz
         for prediction, label in zip(predictions, labels)
     ]
 
+    conf_preds = []
+    conf_labels = []
+    for i, preds in enumerate(true_predictions):
+        conf_preds += [label2id[i] for i in preds]
+        conf_labels += [label2id[i] for i in true_labels[i]]
+
     results = seqeval.compute(predictions=true_predictions, references=true_labels)
-    #confusion = confusion_matrix.compute(predictions=true_predictions, references=true_labels)
+    confusion = confusion_matrix.compute(predictions=conf_preds, references=conf_labels)
     return {
         "precision": results["overall_precision"],
         "recall": results["overall_recall"],
         "f1": results["overall_f1"],
         "accuracy": results["overall_accuracy"],
-        #"confusion_matrix": confusion["confusion_matrix"]
+        "confusion_matrix": confusion["confusion_matrix"]
     }
 
-def compute_all_metrics(model:AutoModelForTokenClassification, tokenizer:AutoTokenizer, data:Dataset):
-    pass
+def compute_all_metrics(model:AutoModelForTokenClassification, data:Dataset):
+    predictions = []
+    labels = []
+    for datum in tqdm(data, desc="Inference Progress"):
+        logits, prediction, predicted_token_class, inputs = inference(model, torch.tensor([datum['input_ids']]), torch.tensor([datum['attention_mask']]))
+        predictions.append(prediction.tolist()[0])
+        labels.append(datum['labels'])
+    
+    return compute_metrics(predictions, labels)
 
+def ensembler(output1, output2, words_ids1, word_ids2, labels):
+    new_output1 = 
 
 def download_distilbert():
     run = wandb.init()
