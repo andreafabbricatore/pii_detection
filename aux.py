@@ -90,6 +90,35 @@ def json_to_Dataset(filepath:str) -> Dataset:
 
     return dataset
 
+def json_to_Dataset_ensemble(filepath:str) -> Dataset:
+    """
+    Pass a .json filepath generated during the pipeline phase and get a Dataset file format for training and evaluation.
+    """
+
+    data = []
+    with open(filepath) as f:
+        data = json.load(f)
+
+    spacy_labels = []
+    albert_inputids = []
+    distilbert_inputids = []
+    albert_wordids = []
+    distilbert_wordids = []
+    albert_attention_masks = []
+    distilbert_attention_masks = []
+    for i in data:
+        spacy_labels.append(i['spacy_labels'])
+        albert_inputids.append(i['albert_inputids'])
+        distilbert_inputids.append(i['distilbert_inputids'])
+        albert_wordids.append(i['albert_wordids'])
+        distilbert_wordids.append(i['distilbert_wordids'])
+        albert_attention_masks.append([1 for i in range(len(i['albert_inputids']))])
+        distilbert_attention_masks.append([1 for i in range(len(i['distilbert_inputids']))])
+
+    dataset = Dataset.from_dict({'spacy_labels': spacy_labels, 'albert_inputids': albert_inputids, 'distilbert_inputids': distilbert_inputids, 'albert_wordids': albert_wordids, 'distilbert_wordids':distilbert_wordids, 'albert_attention_masks': albert_attention_masks, 'distilbert_attention_masks':distilbert_attention_masks})
+
+    return dataset
+
 def inference(model:AutoModelForTokenClassification, input_ids:torch.tensor, attention_mask:torch.tensor):
     inputs = {'input_ids': input_ids, 'attention_mask': attention_mask}
     with torch.no_grad():
