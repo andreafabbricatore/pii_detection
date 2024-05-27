@@ -129,6 +129,14 @@ def inference(model:AutoModelForTokenClassification, input_ids:torch.tensor, att
 
     return logits, predictions, predicted_token_class, inputs
 
+def ensemble_inference(model, distilbert_input_ids, albert_input_ids, distil_attention_mask, alb_attention_mask, distilbert_word_ids, albert_word_ids):
+    with torch.no_grad():
+        logits = model(distilbert_input_ids, albert_input_ids, distil_attention_mask, alb_attention_mask, distilbert_word_ids, albert_word_ids)
+    predictions = torch.argmax(logits, dim=1)
+    predicted_token_class = [id2label[t.item()] for t in predictions]
+
+    return logits, predictions, predicted_token_class
+
 def compute_metrics(predictions:list, labels:list):
     true_predictions = [
         [all_labels[p] for (p, l) in zip(prediction, label) if l != -100]
@@ -165,6 +173,19 @@ def compute_all_metrics(model:AutoModelForTokenClassification, data:Dataset):
     
     return compute_metrics(predictions, labels)
 
+def compute_ensemble_metrics(model, data:Dataset):
+    predictions = []
+    labels = []
+    for datum in tqdm(data, desc="Inference Progress"):
+        try:
+            logits, prediction, predicted_token_class = ensemble_inference(model, torch.tensor([datum['distilbert_inputids']]), torch.tensor([datum['albert_inputids']]), torch.tensor([datum['distilbert_attention_masks']]), torch.tensor([datum['albert_attention_masks']]), torch.tensor([[-100] + datum['distilbert_wordids'][1:-1] + [-100]]) , torch.tensor([[-100] + datum['albert_wordids'][1:-1] + [-100]]))
+        except:
+            continue
+        predictions.append(prediction.tolist())
+        labels.append(datum['spacy_labels'])
+
+    return compute_metrics(predictions, labels)
+
 def ensembler(output1, output2, word_ids1, word_ids2):
     word_ids1 = word_ids1[1:-1]
     word_ids2 = word_ids2[1:-1]
@@ -181,32 +202,72 @@ def ensembler(output1, output2, word_ids1, word_ids2):
     new_output2 = []
 
     current_word = []
-    prev_word_id = 0
+    prev_word_id = word_ids1[0]
     for ind, word_id in enumerate(word_ids1):
         if word_id != prev_word_id:
             if word_id > prev_word_id + 1:
-                new_output1.append(placeholder1)
+                new_output1.append(placeholder1.tolist())
             prev_word_id = word_id
             stacked_tensors = torch.stack(current_word)
             averaged_tensor = torch.mean(stacked_tensors, dim=0)
             new_output1.append(averaged_tensor.tolist())
             current_word = []
+        if ind == len(word_ids1) - 1:
+            current_word.append(output1[ind])
+            stacked_tensors = torch.stack(current_word)
+            averaged_tensor = torch.mean(stacked_tensors, dim=0)
+            new_output1.append(averaged_tensor.tolist())
         current_word.append(output1[ind])
 
     current_word = []
-    prev_word_id = 0
+    prev_word_id = word_ids2[0]
     for ind, word_id in enumerate(word_ids2):
         if word_id != prev_word_id:
             if word_id > prev_word_id + 1:
-                new_output2.append(placeholder2)
+                new_output2.append(placeholder2.tolist())
             prev_word_id = word_id
             stacked_tensors = torch.stack(current_word)
             averaged_tensor = torch.mean(stacked_tensors, dim=0)
             new_output2.append(averaged_tensor.tolist())
             current_word = []
+        if ind == len(word_ids2) - 1:
+            current_word.append(output2[ind])
+            stacked_tensors = torch.stack(current_word)
+            averaged_tensor = torch.mean(stacked_tensors, dim=0)
+            new_output2.append(averaged_tensor.tolist())
         current_word.append(output2[ind])
 
     return torch.tensor(new_output1), torch.tensor(new_output2)
+
+def split_list_by_none(input_list, outputs):
+    # Initialize variables
+    result = []
+    outputsnew = []
+    current_sublist = []
+    print(outputs)
+    for ind, item in enumerate(input_list):
+        # Add item to current sublist
+        current_sublist.append(item)
+        # If item is None, finalize the current sublist and start a new one
+        if item is None and ind != 0 and input_list[ind - 1] != None:
+            result.append(current_sublist)
+            outputsnew.append(outputs[ind - len(current_sublist) + 1: ind + 1])
+            current_sublist = []
+
+    return result, outputsnew
+
+def ensembler_batch(output1, output2, word_ids1, word_ids2):
+    word_ids1, output1 = split_list_by_none(word_ids1, output1)
+    word_ids2, output2 = split_list_by_none(word_ids2, output2)
+    
+    res1 = []
+    res2 = []
+    for i in range(len(word_ids1)):
+        new_output1, new_output2 = ensembler(output1[i], output2[i], word_ids1[i], word_ids2[i])
+        res1.append(new_output1)
+        res2.append(new_output2)
+
+    return torch.cat(res1, dim=0), torch.cat(res2, dim=0)
 
 def download_distilbert():
     run = wandb.init()
